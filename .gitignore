@@ -1,0 +1,7 @@
+
+# automate cleaning and rebuilding work env
+cleanup
+
+# ignore cache files
+__pycache__/
+
