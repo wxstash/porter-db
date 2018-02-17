@@ -1,14 +1,11 @@
 # provide an interface to makeshift databases
-# made with/as csv and json files
 
 import csv
 import json
 import os, shutil
 import time
 
-stash = {}
-LAST_ID = 0
-
+# config
 DB_ROOT = "./porter-db/"
 DB_PATH = "./porter-db/db/"
 TRASH_PATH = "./porter-db/trash/"
@@ -18,7 +15,8 @@ DB_DEP = ["db", "trash", "log"]
 if not os.path.isdir(DB_ROOT):
 	os.mkdir(DB_ROOT)
 	for dep in DB_DEP:
-		os.mkdir(DB_ROOT + dep)
+		if not os.path.isdir(DB_ROOT + dep):
+			os.mkdir(DB_ROOT + dep)
 
 class DB(dict):
 	def __init__(self):
@@ -108,6 +106,7 @@ class DataBase():
 			except:
 				self.__init__(target_db, new=True, index_by=index_by)
 		
+		self.target_db = target_db
 		self.events = EventHandler(target_db)
 		self.meta = db[target_db].get("meta")
 		self.content = db[target_db].get("content")
@@ -147,7 +146,14 @@ class DataBase():
 		return self.content.get(id)
 	
 	def save(self):
-		pass
+		db_record = DB_PATH + self.target_db + ".db"
+		record = db.get(self.target_db)
+		
+		if not record:
+			return KeyError("database does not exist")
+		
+		with open(db_record, "w") as record_file:
+			record_file.write(json.dumps(record) + "\n")
 	
 	def rollback(self, to=-1):
 		pass
