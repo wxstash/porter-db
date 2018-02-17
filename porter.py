@@ -51,6 +51,9 @@ class DB(dict):
 			foundation = """{"meta": %s, "content": {}}""" %(p_meta)
 			blank.write(foundation + "\n")
 		
+		# log new db event
+		# log template build event
+		
 		# load the new db
 		self.load_db(target_db)
 	
@@ -96,20 +99,27 @@ class DataBase():
 			indexer = self.meta["insert_id"]
 			self.meta["insert_id"] += 1
 		else:
-			if not entry.get(self.meta["index_by"]):
-				return KeyError(f"index key ({self.meta['index_by']}) not present")
+			indexer = entry.get(self.meta.get("index_by"))
+			if not indexer:
+				return KeyError(f"""index key "{self.meta['index_by']}" not present""")
 		
 		self.content[indexer] = entry
 		self.events.insert(entry)
 	
 	def update(self, id, entry):
-		pass
+		if self.content.get(id):
+			self.content[id].update(entry)
+		else:
+			return KeyError(f"no entry at {id}")
 	
 	def delete(self, id):
-		pass
+		if self.content.get(id):
+			_ = self.content.pop(id)
+		else:
+			return KeyError(f"{id} does not exist")
 	
 	def fetch(self, id):
-		pass
+		return self.content.get(id)
 
 class EventHandler():
 	def __init__(self, target_log):
