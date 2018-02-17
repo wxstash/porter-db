@@ -3,7 +3,7 @@
 
 import csv
 import json
-import os
+import os, shutil
 import time
 
 stash = {}
@@ -11,9 +11,9 @@ LAST_ID = 0
 
 DB_ROOT = "./porter-db/"
 DB_PATH = "./porter-db/db/"
-TEMP_PATH = "./porter-db/temp/"
+TRASH_PATH = "./porter-db/trash/"
 LOG_PATH = "./porter-db/log/"
-DB_DEP = ["db", "temp", "log"]
+DB_DEP = ["db", "trash", "log"]
 
 if not os.path.isdir(DB_ROOT):
 	os.mkdir(DB_ROOT)
@@ -41,18 +41,14 @@ class DB(dict):
 		
 		try:
 			os.mknod(DB_PATH + record_name)
-			os.mknod(TEMP_PATH + target_db+".temp")
 			os.mknod(LOG_PATH + target_db+".log")
 		except:
 			raise
 		
 		with open(DB_PATH+record_name, "w") as blank:
 			p_meta = json.dumps(meta)
-			foundation = """{"meta": %s, "content": {}, "edit_history": 0}""" %(p_meta)
+			foundation = """{"meta": %s, "content": {}}""" %(p_meta)
 			blank.write(foundation + "\n")
-		
-		# log new db event
-		# log template build event
 		
 		# load the new db
 		self.load_db(target_db)
@@ -63,12 +59,27 @@ class DB(dict):
 		record_name = target_db + ".db"
 		
 		if record_name not in records:
-			raise KeyError("database record does not exist")
+			raise FileNotFoundError("database record does not exist")
 		
 		record_db = open(DB_PATH + record_name, "r")
 		record = json.loads(record_db.read())
 		
 		self[target_db] = record
+	
+	def trash_db(self, target_db):
+		# cofirm that the db exists
+		if target_db+".db" not in os.listdir(DB_PATH):
+			return FileNotFoundError("database does not exist")
+		
+		os.remove(DB_PATH + target_db + ".db")
+		shutil.move(LOG_PATH+target_db+".log", TRASH_PATH+target_db+".trash")
+		
+		# check if db has been loaded
+		if target_db in self.keys():
+			_ = self.pop(target_db)
+	
+	def recover_db(self, target_db):
+		pass
 	
 	def rebuild_db(self, target_db):
 		pass
@@ -80,11 +91,12 @@ class DataBase():
 	def __init__(self, target_db, new=False, index_by="_id"):
 		if new:
 			# create a new db
-			meta = {"index_by": index_by}
+			meta = {"index_by": index_by, "edit_history": 0}
 			if index_by == "_id":
 				meta["insert_id"] = 0
 			
 			db.new_db(target_db, meta=meta)
+			self.log_new(target_db)
 		else:
 			try:
 				# check if its already loaded
@@ -99,6 +111,11 @@ class DataBase():
 		self.events = EventHandler(target_db)
 		self.meta = db[target_db].get("meta")
 		self.content = db[target_db].get("content")
+		
+	
+	def log_new(self, target_db):
+		self.__init__(target_db)
+		self.events.new_db()
 	
 	def insert(self, entry):
 		if self.meta["index_by"] == "_id":
@@ -113,7 +130,7 @@ class DataBase():
 		self.events.insert(indexer, entry)
 	
 	def update(self, id, entry):
-		if self.content.get(id):
+		if self.content.get(id) != None:
 			self.content[id].update(entry)
 			self.events.update(id, entry)
 		else:
@@ -136,10 +153,10 @@ class DataBase():
 		pass
 
 class EventHandler():
-	def __init__(self, target_log):
-		
+	def __init__(self, target_db):
+		self.db = db[target_db]
 		# opening an event handler opens a connection to its log file
-		self.log_file = LOG_PATH + target_log + ".log"
+		self.log_file = LOG_PATH + target_db + ".log"
 		
 		if not os.path.isfile(self.log_file):
 			raise FileNotFoundError("log file not found")
@@ -149,16 +166,22 @@ class EventHandler():
 		record_time = time.strftime(f"{yr}%m%d:%H%M%S")
 		return record_time
 	
+	def confirm_transaction(self):
+		self.db["meta"]["edit_history"] += 1
+	
 	def transaction(self, id, entry, action="pass"):
 		with open(self.log_file, "a") as logger:
 			log = {
 				"transaction": entry,
-				"transaction_id": id,
+				"transaction_index": id,
+				"transaction_id": self.db["meta"].get("edit_history"),
 				"time": self.get_time(),
 				"action": action
 			}
 			log = json.dumps(log)
 			logger.write(log + "\n")
+			
+			self.confirm_transaction()
 	
 	def insert(self, id, entry):
 		self.transaction(id, entry, action="insert")
@@ -168,3 +191,6 @@ class EventHandler():
 	
 	def delete(self, id):
 		self.transaction(id, None, action="delete")
+	
+	def new_db(self):
+		self.transaction(-1, {}, action="blank")
