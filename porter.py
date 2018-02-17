@@ -48,7 +48,7 @@ class DB(dict):
 		
 		with open(DB_PATH+record_name, "w") as blank:
 			p_meta = json.dumps(meta)
-			foundation = """{"meta": %s, "content": {}}""" %(p_meta)
+			foundation = """{"meta": %s, "content": {}, "edit_history": 0}""" %(p_meta)
 			blank.write(foundation + "\n")
 		
 		# log new db event
@@ -69,6 +69,9 @@ class DB(dict):
 		record = json.loads(record_db.read())
 		
 		self[target_db] = record
+	
+	def rebuild_db(self, target_db):
+		pass
 
 # maintain a reference to all DataBase() objects
 db = DB()
@@ -76,28 +79,22 @@ db = DB()
 class DataBase():
 	def __init__(self, target_db, new=False, index_by="_id"):
 		if new:
-			if target_db not in db.keys():
-				pass
-				if target_db+".db" not in os.listdir(DB_PATH):
-					pass
-				else:
-					raise KeyError("database record already exists")
-			else:
-				raise KeyError("database already exists")
-			
 			# create a new db
 			meta = {"index_by": index_by}
 			if index_by == "_id":
 				meta["insert_id"] = 0
 			
 			db.new_db(target_db, meta=meta)
-		else: # this assumes that the db already exists
-			# check if its already loaded
-			if target_db in db.keys():
-				pass
-			else:
-				# load from file
-				db.load_db(target_db)
+		else:
+			try:
+				# check if its already loaded
+				if target_db in db.keys():
+					pass
+				else:
+					# load from file
+					db.load_db(target_db)
+			except:
+				self.__init__(target_db, new=True, index_by=index_by)
 		
 		self.events = EventHandler(target_db)
 		self.meta = db[target_db].get("meta")
@@ -131,6 +128,12 @@ class DataBase():
 	
 	def fetch(self, id):
 		return self.content.get(id)
+	
+	def save(self):
+		pass
+	
+	def rollback(self, to=-1):
+		pass
 
 class EventHandler():
 	def __init__(self, target_log):
