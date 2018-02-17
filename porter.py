@@ -76,6 +76,15 @@ db = DB()
 class DataBase():
 	def __init__(self, target_db, new=False, index_by="_id"):
 		if new:
+			if target_db not in db.keys():
+				pass
+				if target_db+".db" not in os.listdir(DB_PATH):
+					pass
+				else:
+					raise KeyError("database record already exists")
+			else:
+				raise KeyError("database already exists")
+			
 			# create a new db
 			meta = {"index_by": index_by}
 			if index_by == "_id":
@@ -104,17 +113,19 @@ class DataBase():
 				return KeyError(f"""index key "{self.meta['index_by']}" not present""")
 		
 		self.content[indexer] = entry
-		self.events.insert(entry)
+		self.events.insert(indexer, entry)
 	
 	def update(self, id, entry):
 		if self.content.get(id):
 			self.content[id].update(entry)
+			self.events.update(id, entry)
 		else:
 			return KeyError(f"no entry at {id}")
 	
 	def delete(self, id):
 		if self.content.get(id):
 			_ = self.content.pop(id)
+			self.events.delete(id)
 		else:
 			return KeyError(f"{id} does not exist")
 	
@@ -125,9 +136,9 @@ class EventHandler():
 	def __init__(self, target_log):
 		
 		# opening an event handler opens a connection to its log file
-		log_file = LOG_PATH + target_log + ".log"
+		self.log_file = LOG_PATH + target_log + ".log"
 		
-		if not os.path.isfile(log_file):
+		if not os.path.isfile(self.log_file):
 			raise FileNotFoundError("log file not found")
 	
 	def get_time(self):
@@ -135,40 +146,22 @@ class EventHandler():
 		record_time = time.strftime(f"{yr}%m%d:%H%M%S")
 		return record_time
 	
-	def action(self, entry, action="pass"):
-		pass
+	def transaction(self, id, entry, action="pass"):
+		with open(self.log_file, "a") as logger:
+			log = {
+				"transaction": entry,
+				"transaction_id": id,
+				"time": self.get_time(),
+				"action": action
+			}
+			log = json.dumps(log)
+			logger.write(log + "\n")
 	
-	def insert(self, entry):
-		self.action(entry, action="insert")
-
-def load_db():
-	stacks = ["users.db", "requests.db", "housings.db"]
-	for db in stacks:
-		file = open("assets/db/"+db, "r")
-		entries = file.read().splitlines()
-		content = [json.loads(entry) for entry in entries]
-		stash[db] = content
-
-def reload_db():
-	load_db()
-
-def save_db():
-	stacks = stash.keys()
+	def insert(self, id, entry):
+		self.transaction(id, entry, action="insert")
 	
-	for db in stacks:
-		with open("assets/db/"+db, "w") as file:
-			entries = stash.get(db, "")
-			for entry in entries:
-				entry = json.dumps(entry)
-				file.write(entry + "\n")
-
-def save_now(entry, target_db="dump", plunge=False):
-	if plunge:
-		entry = json.dumps(entry)
-		db = open("assets/db/"+target_db+".db", "a")
-		
-		db.write(entry + "\n")
-		db.close()
-
-def make_entry(entry, target_db="dump"):
-	db = DataBase()
+	def update(self, id, entry):
+		self.transaction(id, entry, action="update")
+	
+	def delete(self, id):
+		self.transaction(id, None, action="delete")
