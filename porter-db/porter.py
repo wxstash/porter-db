@@ -76,11 +76,39 @@ class DB(dict):
 		if target_db in self.keys():
 			_ = self.pop(target_db)
 	
-	def recover_db(self, target_db):
+	def recover_db(self, target_db, path=TRASH_PATH):
+		# rebuild db from trash bucket
+		# trash file must exist in the trash bucket
 		pass
 	
-	def rebuild_db(self, target_db):
-		pass
+	def rebuild_db(self, target_db, path_to_file=""):
+		# attempt to rebuild the db from log file
+		# or from specified path
+		if not os.path.isfile(path_to_file):
+			return FileNotFoundError(f"no log file at {path_to_file}")
+		
+		try:
+			with open(path_to_file, "r") as log_file:
+				logs = log_file.read().splitlines()
+				meta_build = json.loads(logs.pop(0))
+				meta = {
+					"index_by": meta_build.get("transaction_index")
+					}
+				rdb = DataBase(target_db, new=True, index_by=meta["index_by"])
+				
+				for transaction in logs:
+					tr = json.loads(transaction)
+					action = tr.get("action")
+					if tr.get("action") == "insert":
+						rdb.insert(tr["transaction"])
+					elif tr.get("action") == "update":
+						rdb.update(tr["transaction_index"], tr["transaction"])
+					elif tr.get("action") == "delete":
+						rdb.delete(tr["transaction_index"])
+				
+				rdb.save()
+		except:
+			raise
 
 # maintain a reference to all DataBase() objects
 db = DB()
@@ -199,4 +227,4 @@ class EventHandler():
 		self.transaction(id, None, action="delete")
 	
 	def new_db(self):
-		self.transaction(-1, {}, action="blank")
+		self.transaction(self.db["meta"].get("index_by"), {}, action="blank")
