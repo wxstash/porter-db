@@ -5,3 +5,6 @@ cleanup
 # ignore cache files
 __pycache__/
 
+# ignore porter dir
+.porter/
+
