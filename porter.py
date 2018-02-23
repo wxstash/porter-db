@@ -6,10 +6,10 @@ import os, shutil
 import time
 
 # config
-DB_ROOT = "./porter-db/"
-DB_PATH = "./porter-db/db/"
-TRASH_PATH = "./porter-db/trash/"
-LOG_PATH = "./porter-db/log/"
+DB_ROOT = "./.porter/"
+DB_PATH = DB_ROOT + "db/"
+TRASH_PATH = DB_ROOT + "trash/"
+LOG_PATH = DB_ROOT + "log/"
 DB_DEP = ["db", "trash", "log"]
 
 if not os.path.isdir(DB_ROOT):
@@ -152,6 +152,8 @@ class DataBase():
 			indexer = entry.get(self.meta.get("index_by"))
 			if not indexer:
 				return KeyError(f"""index key "{self.meta['index_by']}" not present""")
+		
+		# reject an insert to a key that already exists
 		
 		self.content[indexer] = entry
 		self.events.insert(indexer, entry)
