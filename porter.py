@@ -1,6 +1,7 @@
-# provide an interface to makeshift databases
+# a simple document based database manager
 
-import csv
+## what makes a database engine a functional piece of software
+
 import json
 import os, shutil
 import time
@@ -24,10 +25,11 @@ class DB(dict):
 	
 	def new_db(self, target_db, meta={}):
 		# there are two places a db can be
-		# in memory and an exernal file
+		# in memory and an external file
 		
 		if target_db in self.keys():
-			return KeyError("database already exist")
+			# return KeyError("database already exist")
+			return
 		
 		record_name = target_db + ".db"
 		records = os.listdir(DB_PATH)
@@ -44,8 +46,8 @@ class DB(dict):
 			raise
 		
 		with open(DB_PATH+record_name, "w") as blank:
-			p_meta = json.dumps(meta)
-			foundation = """{"meta": %s, "content": {}}""" %(p_meta)
+			metadata = json.dumps(meta)
+			foundation = """{"meta": %s, "content": {}}""" %(metadata)
 			blank.write(foundation + "\n")
 		
 		# load the new db
@@ -53,23 +55,24 @@ class DB(dict):
 	
 	def load_db(self, target_db):
 		# target db should exist
-		records = os.listdir(DB_PATH)
 		record_name = target_db + ".db"
+		file_op = DB_PATH + record_name
 		
-		if record_name not in records:
+		if not os.path.isfile(file_op):
 			raise FileNotFoundError("database record does not exist")
 		
-		record_db = open(DB_PATH + record_name, "r")
+		record_db = open(file_op, "r")
 		record = json.loads(record_db.read())
 		
 		self[target_db] = record
 	
 	def trash_db(self, target_db):
 		# cofirm that the db exists
-		if target_db+".db" not in os.listdir(DB_PATH):
-			return FileNotFoundError("database does not exist")
+		file_op = DB_PATH + target_db+".db"
+		if not os.path.isfile(file_op):
+			return FileNotFoundError("database record does not exist")
 		
-		os.remove(DB_PATH + target_db + ".db")
+		os.remove(file_op)
 		shutil.move(LOG_PATH+target_db+".log", TRASH_PATH+target_db+".trash")
 		
 		# check if db has been loaded
@@ -79,18 +82,29 @@ class DB(dict):
 	def recover_db(self, target_db, path=TRASH_PATH):
 		# rebuild db from trash bucket
 		# trash file must exist in the trash bucket
-		pass
+		file_op = path + target_db+".trash"
+		if not os.path.isfile(file_op):
+			return FileNotFoundError("trash file does not exist")
+		
+		self.rebuild_db(target_db, path=file_op)
 	
-	def rebuild_db(self, target_db, path_to_file=""):
+	def rebuild_db(self, target_db, path="", callback=False):
 		# attempt to rebuild the db from log file
-		# or from specified path
-		if not os.path.isfile(path_to_file):
-			return FileNotFoundError(f"no log file at {path_to_file}")
+		
+		if not os.path.isfile(path):
+			return FileNotFoundError(f"no log file at {path}")
+		
+		# for integirty's sake, rebuilding deletes log and db files if found
+		if os.path.isfile(LOG_PATH + target_db+".log"):
+			os.remove(LOG_PATH + target_db+".log")
+		if os.path.isfile(DB_PATH + target_db+".db"):
+			os.remove(DB_PATH + target_db+".db")
 		
 		try:
-			with open(path_to_file, "r") as log_file:
-				logs = log_file.read().splitlines()
-				meta_build = json.loads(logs.pop(0))
+			with open(path, "r") as log_file:
+				logs = log_file.read().splitlines() # open log history
+				meta_build = json.loads(logs.pop(0)) # retrieve metadata
+				
 				meta = {
 					"index_by": meta_build.get("transaction_index")
 					}
@@ -153,7 +167,8 @@ class DataBase():
 			if not indexer:
 				return KeyError(f"""index key "{self.meta['index_by']}" not present""")
 		
-		# reject an insert to a key that already exists
+		if self.content.get(indexer):
+			return KeyError("key duplicate")
 		
 		self.content[indexer] = entry
 		self.events.insert(indexer, entry)
@@ -172,8 +187,14 @@ class DataBase():
 		else:
 			return KeyError(f"{id} does not exist")
 	
+	def query_parser(self, query, **meta):
+		pass
+	
 	def fetch(self, id):
 		return self.content.get(id)
+	
+	def fetch_all(self):
+		return [i for i in self.content.values()]
 	
 	def save(self):
 		db_record = DB_PATH + self.target_db + ".db"
