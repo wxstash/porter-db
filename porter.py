@@ -161,6 +161,7 @@ class DataBase():
 	def insert(self, entry):
 		if self.meta["index_by"] == "_id":
 			indexer = self.meta["insert_id"]
+			entry["_id"] = indexer
 			self.meta["insert_id"] += 1
 		else:
 			indexer = entry.get(self.meta.get("index_by"))
