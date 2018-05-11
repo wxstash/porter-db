@@ -1,7 +1,5 @@
 # a simple document based database manager
 
-## what makes a database engine a functional piece of software
-
 import json
 import os, shutil
 import time
@@ -20,6 +18,7 @@ if not os.path.isdir(DB_ROOT):
 			os.mkdir(DB_ROOT + dep)
 
 class DB(dict):
+	"""A container for database objects."""
 	def __init__(self):
 		super().__init__(self)
 	
@@ -47,7 +46,7 @@ class DB(dict):
 		
 		with open(DB_PATH+record_name, "w") as blank:
 			metadata = json.dumps(meta)
-			foundation = """{"meta": %s, "content": {}}""" %(metadata)
+			foundation = '{"meta": %s, "content": {}}' %(metadata)
 			blank.write(foundation + "\n")
 		
 		# load the new db
@@ -124,10 +123,13 @@ class DB(dict):
 		except:
 			raise
 
-# maintain a reference to all DataBase() objects
+# create a reference to all DataBase() objects
 db = DB()
 
 class DataBase():
+	"""main database object
+	
+	"""
 	def __init__(self, target_db, new=False, index_by="_id"):
 		if new:
 			# create a new db
@@ -152,7 +154,6 @@ class DataBase():
 		self.events = EventHandler(target_db)
 		self.meta = db[target_db].get("meta")
 		self.content = db[target_db].get("content")
-		
 	
 	def log_new(self, target_db):
 		self.__init__(target_db)
@@ -188,9 +189,6 @@ class DataBase():
 		else:
 			return KeyError(f"{id} does not exist")
 	
-	def query_parser(self, query, **meta):
-		pass
-	
 	def fetch(self, id):
 		return self.content.get(id)
 	
@@ -207,8 +205,12 @@ class DataBase():
 		with open(db_record, "w") as record_file:
 			record_file.write(json.dumps(record) + "\n")
 	
-	def rollback(self, to=-1):
-		pass
+	def reload_instance(self):
+		target_db = self.target_db
+		db.load_db(target_db)
+		self.events = EventHandler(target_db)
+		self.meta = db[target_db].get("meta")
+		self.content = db[target_db].get("content")
 
 class EventHandler():
 	def __init__(self, target_db):
